@@ -1514,6 +1514,7 @@ parser.add_argument('-s', '--seed', type=int, help='random seed for terrain and 
 parser.add_argument('-b', '--batch', action='store_true', help='Run in batch mode. Requires -f and -p.')
 parser.add_argument('-f', '--mapfile', type=str, help='Path to the map data file (e.g., map1.csv) for batch mode.')
 parser.add_argument('-p', '--paramfile', type=str, help='Path to the parameter file (e.g., para1.csv) for batch mode.')
+parser.add_argument('--screenshot', type=str, metavar='OUTPUT', nargs='?', const='screenshot.png', help='Render a few frames, save a screenshot, then exit.')
 
 args = parser.parse_args()
 
@@ -1631,7 +1632,8 @@ if param_file_path:
 # Initialize Pygame screen and clock AFTER potential FPS change from params
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 clock = pygame.time.Clock()
-pygame.event.set_grab(True)
+if not args.screenshot:
+    pygame.event.set_grab(True)
 
 mouse = pygame.Vector2(0,0)
 
@@ -1651,6 +1653,14 @@ else:
 sim.add_objs(background.maparr)
 
 def main():
+    screenshot_path = args.screenshot
+    screenshot_frames = 60
+
+    if screenshot_path:
+        # Zoom out to fit the whole world in the window
+        sim.scaled = WINDOW_HEIGHT / MAP_SIZE
+        background.cached_scaled = -1
+
     running = True
     while running:
         for event in pygame.event.get():
@@ -1670,25 +1680,28 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     sim.handle_click(event.pos, sim.camera_offset)
-        
+
         screen.fill(BACKGROUND_FILL_COLOUR)
-        
+
         current_background_view = background.update_background(MAP_SIZE, sim.camera_offset, sim.scaled)
 
         screen.blit(current_background_view, (0,0))
-        # background_surface.fill(BACKGROUND_FILL_COLOUR)
-        # background.update_background(MAP_SIZE, sim.camera_offset)
-
-        # test_area = pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
-        # screen.blit(background_surface, (0,0), area=test_area)
-        # pygame.draw.circle(screen, "black", (30, 30), 500)
 
         sim.run()
+
+        if screenshot_path and sim.frames >= screenshot_frames:
+            map_px = int(sim.scaled * MAP_SIZE)
+            crop_w = min(map_px, WINDOW_WIDTH)
+            crop_h = min(map_px, WINDOW_HEIGHT)
+            cropped = screen.subsurface((0, 0, crop_w, crop_h))
+            pygame.image.save(cropped, screenshot_path)
+            print(f"Screenshot saved to {screenshot_path}")
+            running = False
 
         pygame.display.flip()
         clock.tick(FPS)
         pygame.display.set_caption(f"simulation | {round(clock.get_fps(), 2)} fps")
-    
+
 
     pygame.quit()
 
